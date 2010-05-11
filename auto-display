@@ -1,0 +1,58 @@
+#!/bin/bash
+
+screenSizeIndex () {
+  RES=$1
+  echo $(($(xrandr |grep -n "^ *$RES" | awk -F: '{print $1}') - 3))
+}
+
+screenId () {
+  DPY=$1
+  RES=$2
+  echo $(nv-control-dpy --print-metamodes | grep "DFP-$DPY: nvidia-auto-select @$RES" | sed 's/.*id=\([0-9]*\).*/\1/')
+}
+
+# xrandr parameters: screen size index and refresh rate. 
+# Refresh rate is a nvidia hack, it actually maps the metamode id, see "nv-control-dpy --print-metamodes" output
+
+EXTERNAL_SIZE=$(screenSizeIndex 1680x1050)
+EXTERNAL_ID=$(screenId 1 1680x1050)
+
+INTERNAL_SIZE=$(screenSizeIndex 1440x900)
+INTERNAL_ID=$(screenId 0 1440x900)
+
+###############
+
+ensureAdded () {
+	nv-control-dpy --print-metamodes |grep id= | grep -qL DFP-1 -L || {
+		
+        # activate device
+		nv-control-dpy --set-associated-dpys 0x00030000
+		
+        # add mode for external display
+		
+		nv-control-dpy --add-metamode "DFP-1: nvidia-auto-select @1680x1050 +0+0, DFP-0: NULL"
+		
+		EXTERNAL_SIZE=$(screenSizeIndex 1680x1050)
+		EXTERNAL_ID=$(screenId 1 1680x1050)
+	}
+}
+
+
+EXTERNAL=false
+while true; do 
+	DISCONNECTED=""
+	nv-control-dpy --probe-dpys | grep "display devices on GPU-0" -A 2 |grep -q DFP-1 || DISCONNECTED=true
+
+	if [ ! -z "$EXTERNAL" -a ! -z "$DISCONNECTED" ]; then
+		echo "switching to internal"
+		EXTERNAL=""
+		xrandr -s $INTERNAL_SIZE -r $INTERNAL_ID
+	elif [ -z "$EXTERNAL" -a -z "$DISCONNECTED" ]; then
+		echo "switching to external"
+		EXTERNAL=true
+        ensureAdded
+		xrandr -s $EXTERNAL_SIZE -r $EXTERNAL_ID
+	fi
+
+	sleep 2
+done
