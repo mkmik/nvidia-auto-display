@@ -37,22 +37,34 @@ ensureAdded () {
 	}
 }
 
+perform-xrandr () {
+  NOW=$(date +%s)
+  DELTA=$(($NOW - $BEFORE))
+  if [ $DELTA -gt 10 ]; then
+      # echo "WAIRING BECAUSE RIGHT AFTER SLEEP"
+	  sleep 10
+  fi
 
+  xrandr $@
+}
+
+BEFORE=$(date +%s)
 EXTERNAL=false
-while true; do 
+while true; do
 	DISCONNECTED=""
 	nv-control-dpy --probe-dpys | grep "display devices on GPU-0" -A 2 |grep -q DFP-1 || DISCONNECTED=true
 
 	if [ ! -z "$EXTERNAL" -a ! -z "$DISCONNECTED" ]; then
 		echo "switching to internal"
 		EXTERNAL=""
-		xrandr -s $INTERNAL_SIZE -r $INTERNAL_ID
+		perform-xrandr -s $INTERNAL_SIZE -r $INTERNAL_ID
 	elif [ -z "$EXTERNAL" -a -z "$DISCONNECTED" ]; then
 		echo "switching to external"
 		EXTERNAL=true
         ensureAdded
-		xrandr -s $EXTERNAL_SIZE -r $EXTERNAL_ID
+		perform-xrandr -s $EXTERNAL_SIZE -r $EXTERNAL_ID
 	fi
 
+	BEFORE=$(date +%s)
 	sleep 2
 done
